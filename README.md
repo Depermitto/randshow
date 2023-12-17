@@ -7,7 +7,7 @@ Every random number generator in this library has 64-bit state and can output ei
 - Much improved version of LCG, the [Permuted Congruential Generator](https://en.wikipedia.org/wiki/Permuted_congruential_generator?useskin=vector) *RECOMMENDED*
 
 # Usage
-Simply download the contents of *include* directory `#include "randshow.hpp"` in your code. If you wish to extend the functionality of the library or add your own engines, extend the `RNG` interface.
+Simply download the contents of *include* directory and `#include "randshow.hpp"` in your code. If you wish to extend the functionality of the library or add your own engines, extend the `RNG` interface.
 
 ### Examples
 ```C++
