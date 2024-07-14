@@ -67,7 +67,8 @@ class RNG {
     [[nodiscard]] virtual uint64_t Advance64() const = 0;
 };
 
-// Classic Fisher-Yates shuffle algorithm implementation
+// Classic Fisher-Yates O(n) shuffle algorithm implementation.
+//
 // Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
 template <class Iterator>
 void Shuffle(const RNG& rng, Iterator begin, Iterator end) {
@@ -80,7 +81,9 @@ void Shuffle(const RNG& rng, Iterator begin, Iterator end) {
     }
 }
 
-// Reservoir Sampling algorithm implementation, using the 'L' variant
+// Reservoir Sampling O(k(1 + log(n/k))) algorithm implementation, using the 'L'
+// variant.
+//
 // Link: https://en.wikipedia.org/wiki/Reservoir_sampling
 template <class Iterator>
 std::vector<Iterator> Sample(const RNG& rng, Iterator begin, Iterator end,
@@ -88,13 +91,13 @@ std::vector<Iterator> Sample(const RNG& rng, Iterator begin, Iterator end,
     const size_t n = end - begin;
 
     if (n <= k) {
-        std::vector<Iterator> reservoir(n);
+        std::vector<Iterator> reservoir{n};
         std::iota(reservoir.begin(), reservoir.end(), begin);
         Shuffle(rng, reservoir.begin(), reservoir.end());
         return reservoir;
     }
 
-    std::vector<Iterator> reservoir(k);
+    std::vector<Iterator> reservoir{k};
     std::iota(reservoir.begin(), reservoir.end(), begin);
 
     double w = std::exp(std::log(rng.NextFloating()) / k);
