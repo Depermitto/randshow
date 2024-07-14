@@ -93,6 +93,7 @@ std::vector<Iterator> Sample(const RNG& rng, Iterator begin, Iterator end,
     std::iota(reservoir.begin(), reservoir.end(), begin);
 
     if (n <= k) {
+        std::vector<Iterator> reservoir{n};
         Shuffle(rng, reservoir.begin(), reservoir.end());
         return reservoir;
     }
