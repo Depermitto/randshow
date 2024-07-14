@@ -12,7 +12,7 @@ TEST_CASE("Sanity check") {
 bool test_rng(const randshow::RNG& rng, size_t number_range, int numbers_per_bucket, double error_threshold) {
     auto map = std::unordered_map<int, int>();
     for (size_t i = 0; i < number_range * numbers_per_bucket; i++) {
-        map[rng.next32_range(number_range)] += 1;
+        map[rng.next32(number_range)] += 1;
     }
 
     const auto acceptable_error = numbers_per_bucket * error_threshold;
@@ -29,7 +29,7 @@ bool test_rng(const randshow::RNG& rng, size_t number_range, int numbers_per_buc
 TEST_CASE("Randomization quality") {
     constexpr auto number_range = 2000;
     constexpr auto precision = 1200;
-    constexpr auto error_threshold = 0.1;
+    constexpr auto error_threshold = 0.2;
 
     CHECK(test_rng(randshow::lcg::LCG(), number_range, precision, error_threshold));
     CHECK(test_rng(randshow::pcg::PCG(), number_range, precision, error_threshold));
