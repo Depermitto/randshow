@@ -80,30 +80,32 @@ void Shuffle(const RNG& rng, Iterator begin, Iterator end) {
     }
 }
 
-// Reservoir Sampling algorithm implementation, currently Algoritm R variant
+// Reservoir Sampling algorithm implementation, using the 'L' variant
 // Link: https://en.wikipedia.org/wiki/Reservoir_sampling
 template <class Iterator>
 std::vector<Iterator> Sample(const RNG& rng, Iterator begin, Iterator end,
-                             size_t n) {
-    const size_t size = end - begin;
+                             size_t k) {
+    const size_t n = end - begin;
 
-    if (size <= n) {
-        std::vector<Iterator> reservoir(size);
+    if (n <= k) {
+        std::vector<Iterator> reservoir(n);
         std::iota(reservoir.begin(), reservoir.end(), begin);
         Shuffle(rng, reservoir.begin(), reservoir.end());
         return reservoir;
     }
 
-    std::vector<Iterator> reservoir(n);
+    std::vector<Iterator> reservoir(k);
     std::iota(reservoir.begin(), reservoir.end(), begin);
 
-    for (size_t i = n + 1; i <= size; i++) {
-        const auto j = rng.Next64(i);
-        if (j < n) {
-            reservoir[j] = begin + i;
-        }
+    double w = std::exp(std::log(rng.NextFloating()) / k);
+    size_t i = k;
+loop:
+    i += std::floor(std::log(rng.NextFloating()) / std::log(1 - w)) + 1;
+    if (i <= n) {
+        reservoir[rng.Next64(k)] = begin + i;
+        w *= std::exp(std::log(rng.NextFloating()) / k);
+        goto loop;
     }
-
     return reservoir;
 }
 
