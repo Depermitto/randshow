@@ -1,20 +1,24 @@
-#include <cstdlib>
+#include <sys/types.h>
+
+#include <cstddef>
 #include <iostream>
+#include <random>
 #include <unordered_map>
 
 #include "include/randshow.hpp"
 
-namespace lcg = randshow::lcg;
+const randshow::PCG rng{};
 
 int main() {
-    const auto engine = lcg::LCG();
+    auto counter = std::unordered_map<int, int>();
+    std::poisson_distribution<> dist(10);
 
-    auto map = std::unordered_map<int, int>();
-    for (size_t i = 0; i < 10'000'000; i++) {
-        map[engine.next64(-100, 100)] += 1;
+    for (size_t i = 0; i < 1000; i++) {
+        counter[dist(rng)] += 1;
     }
 
-    for (const auto [k, v] : map) {
-        std::cout << k << " " << v << "\n";
+    for (size_t i = 0; i < counter.size(); i++) {
+        std::string count(counter[i], '*');
+        std::cout << i << ": " << count << "\n";
     }
 }
