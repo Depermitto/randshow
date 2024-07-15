@@ -62,8 +62,8 @@ class RNG {
 // Classic Fisher-Yates O(n) shuffle algorithm implementation.
 //
 // Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
-template <class T, class Iterator>
-void Shuffle(const RNG<T>& rng, Iterator begin, Iterator end) {
+template <class T, T MIN, T MAX, class Iterator>
+void Shuffle(const RNG<T, MIN, MAX>& rng, Iterator begin, Iterator end) {
     if (begin >= end) return;
 
     const size_t length = end - begin;
@@ -77,8 +77,8 @@ void Shuffle(const RNG<T>& rng, Iterator begin, Iterator end) {
 // variant.
 //
 // Link: https://en.wikipedia.org/wiki/Reservoir_sampling
-template <class T, class Iterator>
-std::vector<Iterator> Sample(const RNG<T>& rng, const Iterator begin,
+template <class T, T MIN, T MAX, class Iterator>
+std::vector<Iterator> Sample(const RNG<T, MIN, MAX>& rng, const Iterator begin,
                              const Iterator end, size_t k) {
     const size_t n = end - begin;
     std::vector<Iterator> reservoir{std::min(n, k)};
@@ -102,8 +102,8 @@ loop:
     return reservoir;
 }
 
-template <class T, class Iterator>
-std::vector<Iterator> SampleWithReplacement(const RNG<T>& rng,
+template <class T, T MIN, T MAX, class Iterator>
+std::vector<Iterator> SampleWithReplacement(const RNG<T, MIN, MAX>& rng,
                                             const Iterator begin,
                                             const Iterator end, size_t k) {
     const size_t n = end > begin ? end - begin : 0;
@@ -186,7 +186,9 @@ class PCG : public RNG<> {
    public:
     // XSH-RR-RR
     uint64_t Next64() const {
-        uint64_t x = Advance();
+        auto x = seed_;
+        seed_ = mul_ * seed_ + inc_;
+
         uint32_t count = x >> 59U;
 
         // XSH
