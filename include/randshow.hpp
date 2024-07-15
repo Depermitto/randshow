@@ -21,10 +21,10 @@ class RNG {
     virtual T operator()() const { return Next(); }
 
     // Next random number from uniform distribution in [0, n) range.
-    virtual T Next(T n) const { return Next(0, n - 1); }
+    virtual T Next(T n) const { return Next(0, n); }
     virtual T operator()(T n) const { return Next(n); }
 
-    // Next random number from uniform distribution in [a, b] range.
+    // Next random number from uniform distribution in [a, b) range.
     virtual T Next(int64_t a, int64_t b) const {
         if (a > b - 1) return a;
 
@@ -171,7 +171,6 @@ class PCG : public RNG<> {
         return (x >> r) | (x << (-r & 31));
     }
 
-   public:
     // XSH-RR
     uint32_t Advance() const override {
         auto x = seed_;
@@ -184,22 +183,23 @@ class PCG : public RNG<> {
         return x;
     }
 
+   public:
     // XSH-RR-RR
-    // uint64_t Advance64() const override {
-    //     uint64_t x = Advance();
-    //     uint32_t count = x >> 59U;
+    uint64_t Next64() const {
+        uint64_t x = Advance();
+        uint32_t count = x >> 59U;
 
-    //     // XSH
-    //     uint32_t high_bits = x >> 32U;
-    //     uint32_t low_bits = x;
-    //     x = low_bits ^ high_bits;
+        // XSH
+        uint32_t high_bits = x >> 32U;
+        uint32_t low_bits = x;
+        x = low_bits ^ high_bits;
 
-    //     uint32_t x_low = Rotr32(x, count);             // RR
-    //     uint64_t x_high = Rotr32(high_bits, x & 31U);  // RR
-    //     x = (x_high << 32U) | x_low;
+        uint32_t x_low = Rotr32(x, count);             // RR
+        uint64_t x_high = Rotr32(high_bits, x & 31U);  // RR
+        x = (x_high << 32U) | x_low;
 
-    //     return x;
-    // }
+        return x;
+    }
 
     PCG() { Next(); }
 
