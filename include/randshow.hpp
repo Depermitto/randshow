@@ -1,82 +1,74 @@
 #pragma once
 
-#include <algorithm>
-#include <chrono>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
-#include <numeric>
-#include <utility>
+#include <random>
+#include <type_traits>
 #include <vector>
 
 namespace randshow {
+// Fully satisfies UniformRandomBitGenerator
+template <class T = uint32_t, T MIN = 0, T MAX = UINT32_MAX,
+          std::enable_if_t<std::is_integral_v<T>, bool> = true>
 class RNG {
    public:
-    // Next random 32-bit unsigned int.
-    [[nodiscard]] virtual uint32_t Next32() const { return Advance32(); }
+    // UniformRandomBitGenerator C++11 named requirement implementation
+    constexpr static T min() { return MIN; }
+    constexpr static T max() { return MAX; }
+    using result_type = T;
 
-    // Next random 32-bit unsigned int from uniform distribution in [0, n)
-    // range.
-    [[nodiscard]] virtual uint32_t Next32(uint32_t n) const {
-        return Next32() % n;
+    virtual T Next() const { return Advance(); }
+    virtual T operator()() const { return Next(); }
+
+    // Next random number from uniform distribution in [0, n) range.
+    virtual T Next(T n) const { return Next(0, n - 1); }
+    virtual T operator()(T n) const { return Next(n); }
+
+    // Next random number from uniform distribution in [a, b] range.
+    virtual T Next(int64_t a, int64_t b) const {
+        if (a > b - 1) return a;
+
+        std::uniform_int_distribution<int64_t> dist(a, b - 1);
+        return dist(*this);
     }
-
-    // Next random 32-bit signed int from uniform distribution in [a, b) range.
-    [[nodiscard]] virtual int32_t Next32(int32_t a, int32_t b) const {
-        return b > a ? Next32() % (b - a) + a : a;
-    }
-
-    // Next random 64-bit unsigned int.
-    [[nodiscard]] virtual uint64_t Next64() const { return Advance64(); }
-
-    // Next random 64-bit unsigned int from uniform distribution in [0, n)
-    // range.
-    [[nodiscard]] virtual uint64_t Next64(uint64_t n) const {
-        return Next64() % n;
-    }
-
-    // Next random 64-bit unsigned int from uniform distribution in [a, b)
-    // range.
-    [[nodiscard]] virtual int64_t Next64(int64_t a, int64_t b) const {
-        return b > a ? Next64() % (b - a) + a : a;
-    }
+    virtual T operator()(int64_t a, int64_t b) const { return Next(a, b); }
 
     // Next floating point number from standard uniform distribution i.e. (0, 1)
     // range.
-    [[nodiscard]] virtual double NextFloating() const {
-        return static_cast<double>(Next32()) / UINT32_MAX;
+    virtual double NextFloating() const {
+        return static_cast<double>(Next()) / max();
     }
 
     // Floating point uniform distribution in [a, b) range.
-    [[nodiscard]] virtual double NextFloating(double a, double b) const {
+    virtual double NextFloating(double a, double b) const {
         return NextFloating() * (b - a) + a;
     }
 
     // Balanced coin flip with 50% chance of heads and tails.
-    [[nodiscard]] virtual bool Heads() const { return NextFloating() < 0.5; }
+    virtual bool Heads() const { return NextFloating() < 0.5; }
 
     // Weighted coin flip. Parameter weight must be in (0, 1) range.
     // Weight smaller or equal than 0 will always yield false and
     // bigger or equal to 1 always yielding true.
-    [[nodiscard]] virtual bool Heads(double weight) const {
-        return NextFloating() < weight;
-    }
+    virtual bool Heads(double weight) const { return NextFloating() < weight; }
 
    private:
-    [[nodiscard]] virtual uint32_t Advance32() const = 0;
-    [[nodiscard]] virtual uint64_t Advance64() const = 0;
+    virtual uint32_t Advance() const = 0;
+
+   protected:
+    std::random_device rd{};
 };
 
 // Classic Fisher-Yates O(n) shuffle algorithm implementation.
 //
 // Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
-template <class Iterator>
-void Shuffle(const RNG& rng, Iterator begin, Iterator end) {
+template <class T, class Iterator>
+void Shuffle(const RNG<T>& rng, Iterator begin, Iterator end) {
     if (begin >= end) return;
 
     const size_t length = end - begin;
     for (size_t i = 0; i != length - 2; i++) {
-        const auto j = rng.Next64(i, length);
+        const auto j = rng.Next(i, length);
         std::swap(*(begin + i), *(begin + j));
     }
 }
@@ -85,9 +77,9 @@ void Shuffle(const RNG& rng, Iterator begin, Iterator end) {
 // variant.
 //
 // Link: https://en.wikipedia.org/wiki/Reservoir_sampling
-template <class Iterator>
-std::vector<Iterator> Sample(const RNG& rng, Iterator begin, Iterator end,
-                             size_t k) {
+template <class T, class Iterator>
+std::vector<Iterator> Sample(const RNG<T>& rng, const Iterator begin,
+                             const Iterator end, size_t k) {
     const size_t n = end - begin;
     std::vector<Iterator> reservoir{std::min(n, k)};
     std::iota(reservoir.begin(), reservoir.end(), begin);
@@ -103,11 +95,23 @@ std::vector<Iterator> Sample(const RNG& rng, Iterator begin, Iterator end,
 loop:
     i += std::floor(std::log(rng.NextFloating()) / std::log(1 - w)) + 1;
     if (i <= n) {
-        reservoir[rng.Next64(k)] = begin + i;
+        reservoir[rng.Next(k)] = begin + i;
         w *= std::exp(std::log(rng.NextFloating()) / k);
         goto loop;
     }
     return reservoir;
+}
+
+template <class T, class Iterator>
+std::vector<Iterator> SampleWithReplacement(const RNG<T>& rng,
+                                            const Iterator begin,
+                                            const Iterator end, size_t k) {
+    const size_t n = end > begin ? end - begin : 0;
+    std::vector<Iterator> pool(k, begin);
+    for (Iterator& it : pool) {
+        it += rng.Next(n);
+    }
+    return pool;
 }
 
 // LCG or Linear Congruential Generator has very low footprint and is very fast.
@@ -116,13 +120,11 @@ loop:
 // requiring true random numbers.
 //
 // This LCG implementation requires 32 bytes of memory per instance.
-class LCG : public RNG {
+class LCG : public RNG<> {
    private:
-    uint32_t Advance32() const override { return Advance64(); }
-
-    uint64_t Advance64() const override {
-        const auto x = m_State;
-        m_State = (m_Mul * m_State + m_Inc) % m_Mod;
+    uint32_t Advance() const override {
+        const auto x = seed_;
+        seed_ = (mul_ * seed_ + inc_) % mod_;
         return x;
     }
 
@@ -133,108 +135,108 @@ class LCG : public RNG {
 
     // Creates a new LCG engine with a, c, m parameters equal to the default
     // engine with custom seed value. Meant for reproducibility.
-    explicit LCG(uint64_t seed) : m_State(seed) {}
+    explicit LCG(uint64_t seed) : seed_(seed) {}
 
     // Creates a new LCG engine with custom a, c, m parameters and seed equal to
     // current time.
     LCG(uint64_t multiplier, uint64_t increment, uint64_t modulo)
-        : m_Mul(multiplier), m_Inc(increment), m_Mod(modulo) {}
+        : mul_(multiplier), inc_(increment), mod_(modulo) {}
 
     // Creates a new LCG engine.
     LCG(uint64_t seed, uint64_t multiplier, uint64_t increment, uint64_t modulo)
-        : m_State(seed), m_Mul(multiplier), m_Inc(increment), m_Mod(modulo) {}
+        : seed_(seed), mul_(multiplier), inc_(increment), mod_(modulo) {}
 
     // Getter for state value.
-    [[nodiscard]] uint64_t GetState() const noexcept { return m_State; }
+    uint64_t GetSeed() const { return seed_; }
 
     // Getter for state multiplier.
-    [[nodiscard]] uint64_t GetMul() const noexcept { return m_Mul; }
+    uint64_t GetMul() const { return mul_; }
 
     // Getter for multiplied state increment.
-    [[nodiscard]] uint64_t GetInc() const noexcept { return m_Inc; }
+    uint64_t GetInc() const { return inc_; }
 
     // Getter for incremented state modulo.
-    [[nodiscard]] uint64_t GetMod() const noexcept { return m_Mod; }
+    uint64_t GetMod() const { return mod_; }
 
    private:
-    mutable uint64_t m_State =
-        std::chrono::high_resolution_clock::now().time_since_epoch().count();
-    uint64_t m_Mul = 6458928179451363983ULL;
-    uint64_t m_Inc = 0;
-    uint64_t m_Mod = ((1ULL << 63ULL) - 25ULL);
+    mutable uint64_t seed_ = rd();
+    uint64_t mul_ = 6458928179451363983ULL;
+    uint64_t inc_ = 0ULL;
+    uint64_t mod_ = ((1ULL << 63ULL) - 25ULL);
 };
 
-class PCG : public RNG {
+class PCG : public RNG<> {
    private:
-    // (high_bits XOR low_bits) of x.
-    static uint64_t Xorshift32(uint64_t x) {
-        auto high_bits = static_cast<uint32_t>(x >> 32U);
-        auto low_bits = static_cast<uint32_t>(x);
-        return high_bits ^ low_bits;
-    }
-
-    static uint32_t Rotr32(uint64_t x, uint32_t rot) {
-        return (x >> rot) | (x << ((-rot) & 31U));
-    }
-
-    uint64_t Advance() const {
-        auto x = m_State;
-        m_State = m_Mul * m_State + m_Inc;
-        return x;
+    static uint32_t Rotr32(uint32_t x, uint32_t r) {
+        return (x >> r) | (x << (-r & 31));
     }
 
    public:
-    // PCG-XSH-RR
-    uint32_t Advance32() const override {
-        uint64_t x = Advance();
-        auto rotation = static_cast<uint32_t>(x >> 59U);
+    // XSH-RR
+    uint32_t Advance() const override {
+        auto x = seed_;
+        seed_ = mul_ * seed_ + inc_;
 
-        x = Xorshift32(x);
-        x = Rotr32(x, rotation);
+        uint32_t count = x >> 59U;
+
+        x ^= (x >> 18);              // XSH
+        x = Rotr32(x >> 27, count);  // RR
         return x;
     }
 
-    // PCG-XSH-RR-RR
-    uint64_t Advance64() const override {
-        uint64_t x = Advance();
-        uint32_t rotation = x >> 59U;
+    // XSH-RR-RR
+    // uint64_t Advance64() const override {
+    //     uint64_t x = Advance();
+    //     uint32_t count = x >> 59U;
 
-        // XSH
-        uint32_t high_bits = x >> 32U;
-        uint32_t low_bits = x;
-        x = low_bits ^ high_bits;
+    //     // XSH
+    //     uint32_t high_bits = x >> 32U;
+    //     uint32_t low_bits = x;
+    //     x = low_bits ^ high_bits;
 
-        // RR-RR
-        uint32_t x_low = Rotr32(x, rotation);
-        uint64_t x_high = Rotr32(high_bits, x & 31U);
-        x = (x_high << 32U) | x_low;
+    //     uint32_t x_low = Rotr32(x, count);             // RR
+    //     uint64_t x_high = Rotr32(high_bits, x & 31U);  // RR
+    //     x = (x_high << 32U) | x_low;
 
-        return x;
-    }
+    //     return x;
+    // }
 
-    PCG() = default;
+    PCG() { Next(); }
 
-    explicit PCG(uint64_t seed) : m_State(seed) {}
+    explicit PCG(uint64_t seed) : seed_(seed) { Next(); }
 
     PCG(uint64_t multiplier, uint64_t increment)
-        : m_Mul(multiplier), m_Inc(increment) {}
+        : mul_(multiplier), inc_(increment) {
+        Next();
+    }
 
     PCG(uint64_t seed, uint64_t multiplier, uint64_t increment)
-        : m_State(seed), m_Mul(multiplier), m_Inc(increment) {}
+        : seed_(seed), mul_(multiplier), inc_(increment) {
+        Next();
+    }
 
     // Getter for state value.
-    [[nodiscard]] uint64_t GetState() const { return m_State; }
+    uint64_t GetSeed() const { return seed_; }
 
     // Getter for state multiplier.
-    [[nodiscard]] uint64_t GetMul() const { return m_Mul; }
+    uint64_t GetMul() const { return mul_; }
 
     // Getter for multiplied state increment.
-    [[nodiscard]] uint64_t GetInc() const { return m_Inc; }
+    uint64_t GetInc() const { return inc_; }
 
    private:
-    mutable uint64_t m_State =
-        std::chrono::high_resolution_clock::now().time_since_epoch().count();
-    const uint64_t m_Mul = 6364136223846793005UL;
-    const uint64_t m_Inc = 1442695040888963407UL;
+    mutable uint64_t seed_ = rd();
+    const uint64_t mul_ = 6364136223846793005ULL;
+    const uint64_t inc_ = 1442695040888963407ULL;
+};
+
+class C_RNG : public RNG<> {
+   private:
+    uint32_t Advance() const override { return std::rand(); }
+
+   public:
+    C_RNG() { std::srand(rd()); }
+
+    explicit C_RNG(uint64_t seed) { std::srand(seed); }
 };
 }  // namespace randshow
