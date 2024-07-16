@@ -1,59 +1,69 @@
 #pragma once
 
+#include <climits>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <random>
 #include <type_traits>
 #include <vector>
 
 namespace randshow {
-// Fully satisfies UniformRandomBitGenerator
-template <class T = uint32_t, T MIN = 0, T MAX = UINT32_MAX,
-          std::enable_if_t<std::is_integral_v<T>, bool> = true>
-class RNG {
-   public:
-    // UniformRandomBitGenerator C++11 named requirement implementation
-    constexpr static T min() { return MIN; }
-    constexpr static T max() { return MAX; }
-    using result_type = T;
 
+namespace detail {
+inline uint32_t Rotr32(uint32_t x, uint32_t r) {
+    return (x >> r) | (x << (-r & 31));
+}
+}  // namespace detail
+
+// Fully satisfies UniformRandomBitGenerator
+template <class T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+class RNG {
+   private:
+    virtual T Advance() const = 0;
+
+   public:
+    using result_type = T;
+    constexpr static T min() { return std::numeric_limits<T>::min(); }
+    constexpr static T max() { return std::numeric_limits<T>::max(); }
+
+    // Random number from [::min, ::max) range.
     virtual T Next() const { return Advance(); }
+    // Random number from [::min, ::max) range.
     virtual T operator()() const { return Next(); }
 
-    // Next random number from uniform distribution in [0, n) range.
+    // Random number from uniform integer distribution in [0, n) range.
     virtual T Next(T n) const { return Next(0, n); }
+    // Random number from uniform integer distribution in [0, n) range.
     virtual T operator()(T n) const { return Next(n); }
 
-    // Next random number from uniform distribution in [a, b) range.
-    virtual T Next(int64_t a, int64_t b) const {
+    // Random number from uniform integer distribution in [a, b) range.
+    virtual T Next(T a, T b) const {
         if (a > b - 1) return a;
 
-        std::uniform_int_distribution<int64_t> dist(a, b - 1);
+        std::uniform_int_distribution<> dist(a, b - 1);
         return dist(*this);
     }
-    virtual T operator()(int64_t a, int64_t b) const { return Next(a, b); }
+    // Random number from uniform integer distribution in [a, b) range.
+    virtual T operator()(T a, T b) const { return Next(a, b); }
 
-    // Next floating point number from standard uniform distribution i.e. (0, 1)
+    // Floating value number from standard uniform distribution i.e. [0, 1]
     // range.
-    virtual double NextFloating() const {
-        return static_cast<double>(Next()) / max();
-    }
+    virtual double NextReal() const { return NextReal(0.0, 1.0); }
 
-    // Floating point uniform distribution in [a, b) range.
-    virtual double NextFloating(double a, double b) const {
-        return NextFloating() * (b - a) + a;
+    // Floating value from uniform real distribution in [a, b] range.
+    virtual double NextReal(double a, double b) const {
+        std::uniform_real_distribution<double> dist(a, b);
+        return dist(*this);
     }
 
     // Balanced coin flip with 50% chance of heads and tails.
-    virtual bool Heads() const { return NextFloating() < 0.5; }
+    virtual bool Heads() const { return NextReal() < 0.5; }
 
     // Weighted coin flip. Parameter weight must be in (0, 1) range.
     // Weight smaller or equal than 0 will always yield false and
     // bigger or equal to 1 always yielding true.
-    virtual bool Heads(double weight) const { return NextFloating() < weight; }
-
-   private:
-    virtual uint32_t Advance() const = 0;
+    virtual bool Heads(double weight) const { return NextReal() < weight; }
 
    protected:
     std::random_device rd{};
@@ -62,8 +72,8 @@ class RNG {
 // Classic Fisher-Yates O(n) shuffle algorithm implementation.
 //
 // Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
-template <class T, T MIN, T MAX, class Iterator>
-void Shuffle(const RNG<T, MIN, MAX>& rng, Iterator begin, Iterator end) {
+template <class T, class Iterator>
+void Shuffle(const RNG<T>& rng, Iterator begin, Iterator end) {
     if (begin >= end) return;
 
     const size_t length = end - begin;
@@ -77,8 +87,8 @@ void Shuffle(const RNG<T, MIN, MAX>& rng, Iterator begin, Iterator end) {
 // variant.
 //
 // Link: https://en.wikipedia.org/wiki/Reservoir_sampling
-template <class T, T MIN, T MAX, class Iterator>
-std::vector<Iterator> Sample(const RNG<T, MIN, MAX>& rng, const Iterator begin,
+template <class T, class Iterator>
+std::vector<Iterator> Sample(const RNG<T>& rng, const Iterator begin,
                              const Iterator end, size_t k) {
     const size_t n = end - begin;
     std::vector<Iterator> reservoir{std::min(n, k)};
@@ -90,24 +100,24 @@ std::vector<Iterator> Sample(const RNG<T, MIN, MAX>& rng, const Iterator begin,
         return reservoir;
     }
 
-    double w = std::exp(std::log(rng.NextFloating()) / k);
+    double w = std::exp(std::log(rng.NextReal()) / k);
     size_t i = k;
 loop:
-    i += std::floor(std::log(rng.NextFloating()) / std::log(1 - w)) + 1;
+    i += std::floor(std::log(rng.NextReal()) / std::log(1 - w)) + 1;
     if (i <= n) {
         reservoir[rng.Next(k)] = begin + i;
-        w *= std::exp(std::log(rng.NextFloating()) / k);
+        w *= std::exp(std::log(rng.NextReal()) / k);
         goto loop;
     }
     return reservoir;
 }
 
-template <class T, T MIN, T MAX, class Iterator>
-std::vector<Iterator> SampleWithReplacement(const RNG<T, MIN, MAX>& rng,
+template <class T, class Iterator>
+std::vector<Iterator> SampleWithReplacement(const RNG<T>& rng,
                                             const Iterator begin,
                                             const Iterator end, size_t k) {
     const size_t n = end > begin ? end - begin : 0;
-    std::vector<Iterator> pool(k, begin);
+    std::vector<Iterator> pool{k, begin};
     for (Iterator& it : pool) {
         it += rng.Next(n);
     }
@@ -115,19 +125,12 @@ std::vector<Iterator> SampleWithReplacement(const RNG<T, MIN, MAX>& rng,
 }
 
 // LCG or Linear Congruential Generator has very low footprint and is very fast.
-// It has m_modulo limit of generating pseudorandom numbers. LCGs are suitable
+// It has a limit of generating pseudorandom numbers. LCGs are suitable
 // for games or other trivial use-cases, but shouldn't be used for work
 // requiring true random numbers.
 //
 // This LCG implementation requires 32 bytes of memory per instance.
-class LCG : public RNG<> {
-   private:
-    uint32_t Advance() const override {
-        const auto x = seed_;
-        seed_ = (mul_ * seed_ + inc_) % mod_;
-        return x;
-    }
-
+class LCG : public RNG<uint32_t> {
    public:
     // Creates a new LCG engine with a, c, m parameters equal to the default
     // engine. Seed is current time.
@@ -149,43 +152,77 @@ class LCG : public RNG<> {
     // Getter for state value.
     uint64_t GetSeed() const { return seed_; }
 
-    // Getter for state multiplier.
-    uint64_t GetMul() const { return mul_; }
-
-    // Getter for multiplied state increment.
-    uint64_t GetInc() const { return inc_; }
-
-    // Getter for incremented state modulo.
-    uint64_t GetMod() const { return mod_; }
-
    private:
-    mutable uint64_t seed_ = rd();
-    uint64_t mul_ = 6458928179451363983ULL;
-    uint64_t inc_ = 0ULL;
-    uint64_t mod_ = ((1ULL << 63ULL) - 25ULL);
-};
-
-class PCG : public RNG<> {
-   private:
-    static uint32_t Rotr32(uint32_t x, uint32_t r) {
-        return (x >> r) | (x << (-r & 31));
+    result_type Advance() const override {
+        seed_ = (mul_ * seed_ + inc_) % mod_;
+        return seed_;
     }
 
-    // XSH-RR
-    uint32_t Advance() const override {
+    mutable uint64_t seed_ = rd();
+    const uint64_t mul_ = 6458928179451363983ULL;
+    const uint64_t inc_ = 0ULL;
+    const uint64_t mod_ = ((1ULL << 63ULL) - 25ULL);
+};
+
+// XSH-RR PCG RNG
+class PCG32 : public RNG<uint32_t> {
+   public:
+    PCG32() { Next(); }
+
+    explicit PCG32(uint64_t seed) : seed_(seed) { Next(); }
+
+    PCG32(uint64_t multiplier, uint64_t increment)
+        : mul_(multiplier), inc_(increment) {
+        Next();
+    }
+
+    PCG32(uint64_t seed, uint64_t multiplier, uint64_t increment)
+        : seed_(seed), mul_(multiplier), inc_(increment) {
+        Next();
+    }
+
+    // Getter for state value.
+    uint64_t GetSeed() const { return seed_; }
+
+   private:
+    result_type Advance() const override {
         auto x = seed_;
         seed_ = mul_ * seed_ + inc_;
 
         uint32_t count = x >> 59U;
 
-        x ^= (x >> 18);              // XSH
-        x = Rotr32(x >> 27, count);  // RR
+        x ^= (x >> 18);                      // XSH
+        x = detail::Rotr32(x >> 27, count);  // RR
         return x;
     }
 
+    mutable uint64_t seed_ = rd();
+    const uint64_t mul_ = 6364136223846793005ULL;
+    const uint64_t inc_ = 1442695040888963407ULL;
+};
+
+// XSH-RR-RR PCG RNG
+class PCG64 : public RNG<uint64_t> {
    public:
-    // XSH-RR-RR
-    uint64_t Next64() const {
+    PCG64() { Advance(); }
+
+    explicit PCG64(uint64_t seed) : seed_(seed) { Advance(); }
+
+    PCG64(uint64_t multiplier, uint64_t increment)
+        : mul_(multiplier), inc_(increment) {
+        Advance();
+    }
+
+    PCG64(uint64_t seed, uint64_t multiplier, uint64_t increment)
+        : seed_(seed), mul_(multiplier), inc_(increment) {
+        Advance();
+    }
+
+    // Getter for state value.
+    uint64_t GetSeed() const { return seed_; }
+
+   private:
+    result_type Advance() const override {
         auto x = seed_;
         seed_ = mul_ * seed_ + inc_;
 
@@ -196,49 +233,15 @@ class PCG : public RNG<> {
         uint32_t low_bits = x;
         x = low_bits ^ high_bits;
 
-        uint32_t x_low = Rotr32(x, count);             // RR
-        uint64_t x_high = Rotr32(high_bits, x & 31U);  // RR
+        uint32_t x_low = detail::Rotr32(x, count);             // RR
+        uint64_t x_high = detail::Rotr32(high_bits, x & 31U);  // RR
         x = (x_high << 32U) | x_low;
 
         return x;
     }
 
-    PCG() { Next(); }
-
-    explicit PCG(uint64_t seed) : seed_(seed) { Next(); }
-
-    PCG(uint64_t multiplier, uint64_t increment)
-        : mul_(multiplier), inc_(increment) {
-        Next();
-    }
-
-    PCG(uint64_t seed, uint64_t multiplier, uint64_t increment)
-        : seed_(seed), mul_(multiplier), inc_(increment) {
-        Next();
-    }
-
-    // Getter for state value.
-    uint64_t GetSeed() const { return seed_; }
-
-    // Getter for state multiplier.
-    uint64_t GetMul() const { return mul_; }
-
-    // Getter for multiplied state increment.
-    uint64_t GetInc() const { return inc_; }
-
-   private:
     mutable uint64_t seed_ = rd();
     const uint64_t mul_ = 6364136223846793005ULL;
     const uint64_t inc_ = 1442695040888963407ULL;
-};
-
-class C_RNG : public RNG<> {
-   private:
-    uint32_t Advance() const override { return std::rand(); }
-
-   public:
-    C_RNG() { std::srand(rd()); }
-
-    explicit C_RNG(uint64_t seed) { std::srand(seed); }
 };
 }  // namespace randshow

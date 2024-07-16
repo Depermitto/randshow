@@ -2,14 +2,14 @@
 
 #include <catch2/catch.hpp>
 #include <cstddef>
-#include <cstdint>
 #include <iostream>
 #include <unordered_map>
 
 TEST_CASE("Sanity check") { REQUIRE(0 == 0); }
 
-bool test_rng(const randshow::RNG<uint32_t>& rng, size_t number_range,
-              int numbers_per_bucket, double error_threshold) {
+template <class T>
+bool TestRNG(const randshow::RNG<T>& rng, size_t number_range,
+             int numbers_per_bucket, double error_threshold) {
     auto map = std::unordered_map<int, int>();
     for (size_t i = 0; i < number_range * numbers_per_bucket; i++) {
         map[rng.Next(number_range)] += 1;
@@ -28,10 +28,17 @@ bool test_rng(const randshow::RNG<uint32_t>& rng, size_t number_range,
 }
 
 TEST_CASE("Randomization quality") {
-    constexpr auto number_range = 2000;
+    constexpr auto range = 2000;
     constexpr auto precision = 1200;
     constexpr auto error_threshold = 0.15;
 
-    CHECK(test_rng(randshow::LCG(), number_range, precision, error_threshold));
-    CHECK(test_rng(randshow::PCG(), number_range, precision, error_threshold));
+    SECTION("LCG") {
+        CHECK(TestRNG(randshow::LCG(), range, precision, error_threshold));
+    }
+    SECTION("PCG32") {
+        CHECK(TestRNG(randshow::PCG32(), range, precision, error_threshold));
+    }
+    SECTION("PCG64") {
+        CHECK(TestRNG(randshow::PCG64(), range, precision, error_threshold));
+    }
 }
