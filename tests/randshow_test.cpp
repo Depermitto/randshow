@@ -30,7 +30,7 @@ bool TestRNG(const randshow::RNG<T>& rng, size_t number_range,
 TEST_CASE("Randomization quality") {
     constexpr auto range = 2000;
     constexpr auto precision = 1200;
-    constexpr auto error_threshold = 0.15;
+    constexpr auto error_threshold = 0.14;
 
     SECTION("LCG") {
         CHECK(TestRNG(randshow::LCG(), range, precision, error_threshold));
@@ -40,5 +40,13 @@ TEST_CASE("Randomization quality") {
     }
     SECTION("PCG64") {
         CHECK(TestRNG(randshow::PCG64(), range, precision, error_threshold));
+    }
+    SECTION("SplitMix64") {
+        CHECK(
+            TestRNG(randshow::SplitMix64(), range, precision, error_threshold));
+    }
+    SECTION("Xoshiro256") {
+        CHECK(
+            TestRNG(randshow::Xoshiro256(), range, precision, error_threshold));
     }
 }
