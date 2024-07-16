@@ -46,7 +46,7 @@ TEST_CASE("Randomization quality") {
             TestRNG(randshow::SplitMix64(), range, precision, error_threshold));
     }
     SECTION("Xoshiro256") {
-        CHECK(
-            TestRNG(randshow::Xoshiro256(), range, precision, error_threshold));
+        CHECK(TestRNG(randshow::Xoshiro256PlusPlus(), range, precision,
+                      error_threshold));
     }
 }

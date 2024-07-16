@@ -275,17 +275,20 @@ class SplitMix64 : public RNG<uint64_t> {
     mutable uint64_t state_ = rd();
 };
 
-// Xoshiro256++ RNG implementation
+// Recommended for all purposes. Great speed and a state space
+// large enough for any parallel application, although it is not synchronized in
+// its implementation. Any parallel calls should be synchronized from the
+// outside.
 //
 // Link: https://prng.di.unimi.it/xoshiro256plusplus.c
-class Xoshiro256 : public RNG<uint64_t> {
+class Xoshiro256PlusPlus : public RNG<uint64_t> {
    public:
-    Xoshiro256() : Xoshiro256(SplitMix64{}) {}
+    Xoshiro256PlusPlus() : Xoshiro256PlusPlus(SplitMix64{}) {}
 
-    Xoshiro256(uint64_t seed) : Xoshiro256(SplitMix64{seed}) {}
+    Xoshiro256PlusPlus(uint64_t seed) : Xoshiro256PlusPlus(SplitMix64{seed}) {}
 
    private:
-    Xoshiro256(const RNG<uint64_t>& rng) {
+    Xoshiro256PlusPlus(const RNG<uint64_t>& rng) {
         uint64_t t = rng.Next();
         s_[0] = t;
         s_[1] = t >> 32;

@@ -7,7 +7,7 @@
 
 #include "include/randshow.hpp"
 
-const randshow::PCG32 rng{};
+const randshow::Xoshiro256PlusPlus rng{};
 
 int main() {
     auto counter = std::unordered_map<int, int>();
