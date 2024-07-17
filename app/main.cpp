@@ -1,24 +1,30 @@
 #include <sys/types.h>
 
-#include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <random>
 #include <unordered_map>
 
 #include "include/randshow.hpp"
 
-const randshow::Xoshiro256PlusPlus rng{};
+randshow::PCG64 rng{};
 
 int main() {
-    auto counter = std::unordered_map<int, int>();
+    std::unordered_map<int, int> counter{};
     std::poisson_distribution<> dist(10);
 
-    for (size_t i = 0; i < 1000; i++) {
+    for (int n = 1000; n--;) {
         counter[dist(rng)] += 1;
     }
 
-    for (size_t i = 0; i < counter.size(); i++) {
+    for (int i = counter.size(); i--;) {
         std::string count(counter[i], '*');
         std::cout << i << ": " << count << "\n";
+    }
+
+    // PractRand raw random data in binary format
+    while (0) {
+        uint64_t value = rng();
+        std::cout.write(reinterpret_cast<char*>(&value), sizeof(value));
     }
 }

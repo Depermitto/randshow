@@ -34,3 +34,6 @@
 # Meson
 .cache/
 build/
+
+# Randshow
+tests/PractRand*/
