@@ -16,13 +16,13 @@ int main() {
     }
 
     std::unordered_map<int, int> counter{};
-    std::poisson_distribution<> dist(10);
+    std::poisson_distribution<> dist{10};
 
     for (int n = 1000; n--;) {
         counter[dist(rng)] += 1;
     }
 
-    for (int i = counter.size(); i--;) {
+    for (size_t i = counter.size(); i--;) {
         std::string count(counter[i], '*');
         std::cout << i << ": " << count << "\n";
     }

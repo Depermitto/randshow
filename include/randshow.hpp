@@ -10,7 +10,6 @@
 #include <vector>
 
 namespace randshow {
-
 namespace detail {
 constexpr inline uint32_t Rotr32(uint32_t x, int r) {
     return (x >> r) | (x << (32 - r));
@@ -193,7 +192,7 @@ class PCG32 : public RNG<uint32_t> {
 
     result_type Advance() override {
         auto x = state_;
-        state_ = pcg_detail::MUL128 * state_ + pcg_detail::INC128;
+        state_ = pcg_detail::MUL64 * state_ + pcg_detail::INC64;
         uint32_t xorshifted = ((x >> 18U) ^ x) >> 27U;  // XSH
         return detail::Rotr32(xorshifted, x >> 59U);    // RR
     }
@@ -202,7 +201,7 @@ class PCG32 : public RNG<uint32_t> {
     uint64_t GetSeed() const { return state_; }
 
    private:
-    uint64_t state_;
+    uint64_t state_ = rd();
 };
 
 // XSL-RR member of the PCG family. 128-bit state and 64-bit output.
