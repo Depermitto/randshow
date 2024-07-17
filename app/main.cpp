@@ -9,12 +9,6 @@
 randshow::PCG32 rng{};
 
 int main() {
-    // PractRand raw random data in binary format
-    while (0) {
-        auto value = rng();
-        std::cout.write(reinterpret_cast<char*>(&value), sizeof(value));
-    }
-
     std::unordered_map<int, int> counter{};
     std::poisson_distribution<> dist{10};
 

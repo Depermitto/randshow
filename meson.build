@@ -7,5 +7,6 @@ project(
 
 executable('randshow', 'app/main.cpp')
 
+executable('gen_binary_data', 'tests/gen_binary_data.cpp')
 randshow_test = find_program('tests/randshow_test.sh')
-test('randshow_test', randshow_test)
+test('randshow_test', randshow_test, timeout: -1)
