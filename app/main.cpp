@@ -1,15 +1,20 @@
 #include <sys/types.h>
 
-#include <cstdint>
 #include <iostream>
 #include <random>
 #include <unordered_map>
 
 #include "include/randshow.hpp"
 
-randshow::PCG64 rng{};
+randshow::PCG32 rng{};
 
 int main() {
+    // PractRand raw random data in binary format
+    while (0) {
+        auto value = rng();
+        std::cout.write(reinterpret_cast<char*>(&value), sizeof(value));
+    }
+
     std::unordered_map<int, int> counter{};
     std::poisson_distribution<> dist(10);
 
@@ -20,11 +25,5 @@ int main() {
     for (int i = counter.size(); i--;) {
         std::string count(counter[i], '*');
         std::cout << i << ": " << count << "\n";
-    }
-
-    // PractRand raw random data in binary format
-    while (0) {
-        uint64_t value = rng();
-        std::cout.write(reinterpret_cast<char*>(&value), sizeof(value));
     }
 }

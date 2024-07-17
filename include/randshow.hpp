@@ -134,13 +134,13 @@ std::vector<Iterator> SampleWithReplacement(const Iterator begin,
     return pool;
 }
 
-// LCG or Linear Congruential Generator has very low footprint and is very fast.
-// It has a limit of generating pseudorandom numbers. LCGs are suitable
-// for games or other trivial use-cases, but shouldn't be used for work
-// requiring true random numbers.
+// LCG or Linear Congruential Generator is a small and fast RNG. LCGs are
+// suitable for games or other trivial use-cases, but generally it is
+// unrecommended to use them when compared to some of the other choices in this
+// library. Take a look at PCG32 instead.
 //
 // This LCG implementation requires 32 bytes of memory per instance.
-class LCG : public RNG<uint32_t> {
+class LCG : public RNG<uint64_t> {
    public:
     // Creates a new LCG engine with a, c, m parameters equal to the default
     // engine. Seed is current time.
