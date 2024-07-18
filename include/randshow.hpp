@@ -7,8 +7,6 @@
 #include <cmath>
 #include <limits>
 #include <random>
-#include <type_traits>
-#include <vector>
 
 namespace randshow {
 namespace detail {
@@ -27,7 +25,8 @@ constexpr inline uint64_t Rotl64(uint64_t x, int r) {
 }  // namespace detail
 
 // Fully satisfies UniformRandomBitGenerator
-template <class T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+template <class T, typename std::enable_if<std::is_integral<T>::value,
+                                           bool>::type = true>
 class RNG {
    private:
     virtual T Advance() = 0;
@@ -77,79 +76,62 @@ class RNG {
     // bigger or equal to 1 always yielding true.
     bool Heads(double weight) { return NextReal() < weight; }
 
+    // Classic Fisher-Yates O(n) shuffle algorithm implementation.
+    //
+    // Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+    template <class Iterator>
+    void Shuffle(Iterator begin, Iterator end) noexcept {
+        if (begin >= end) return;
+
+        const size_t length = end - begin;
+        for (size_t i = 0; i != length - 2; i++) {
+            std::swap(*(begin + i), *(begin + Next(i, length)));
+        }
+    }
+
+    // Reservoir Sampling O(k(1 + log(n/k))) algorithm implementation, using the
+    // 'L' variant.
+    //
+    // Note: This function does not perform bound checks. Improper iterator
+    // range is considered undefined behaviour.
+    //
+    // Link: https://en.wikipedia.org/wiki/Reservoir_sampling
+    template <class Iterator, class OutIterator>
+    void Sample(const Iterator begin, const Iterator end, OutIterator out,
+                size_t k) noexcept {
+        std::copy(begin, begin + k, out);
+        const size_t length = std::distance(begin, end);
+        if (k >= length / 2) {
+            Shuffle(out, out + k);
+        }
+
+        double w = std::exp(std::log(NextReal()) / k);
+        size_t i = k - 1;
+    loop:
+        i += std::floor(std::log(NextReal()) / std::log(1 - w)) + 1;
+        if (i < length) {
+            *(out + Next(k)) = *(begin + i);
+            w *= std::exp(std::log(NextReal()) / k);
+            goto loop;
+        }
+    }
+
+    // Time complexity: O(k)
+    //
+    // Note: This function does not perform bound checks. Improper iterator
+    // range is considered undefined behaviour.
+    template <class Iterator, class OutIterator>
+    void SampleWithReplacement(const Iterator begin, const Iterator end,
+                               OutIterator out, size_t k) noexcept {
+        const size_t length = std::distance(begin, end);
+        std::transform(out, out + k, out, [begin, length, this]() {
+            return *(begin + Next(length));
+        });
+    }
+
    protected:
     std::random_device rd{};
 };
-
-// Classic Fisher-Yates O(n) shuffle algorithm implementation.
-//
-// Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
-template <class Iterator, class T>
-void Shuffle(Iterator begin, Iterator end, RNG<T>& g) noexcept {
-    if (begin >= end) return;
-
-    const size_t length = end - begin;
-    for (size_t i = 0; i != length - 2; i++) {
-        std::swap(*(begin + i), *(begin + g.Next(i, length)));
-    }
-}
-
-// Reservoir Sampling O(k(1 + log(n/k))) algorithm implementation, using the 'L'
-// variant.
-//
-// Note: This function does not perform bound checks. Improper iterator range is
-// considered undefined behaviour.
-//
-// Link: https://en.wikipedia.org/wiki/Reservoir_sampling
-template <class Iterator, class Iterator2, class T>
-void Sample(const Iterator begin, const Iterator end, Iterator2 out, size_t k,
-            RNG<T>& g) noexcept {
-    std::copy(begin, begin + k, out);
-    const size_t length = end - begin;
-    double w = std::exp(std::log(g.NextReal()) / k);
-    size_t i = k;
-loop:
-    i += std::floor(std::log(g.NextReal()) / std::log(1 - w)) + 1;
-    if (i < length) {
-        *(out + g.Next(k)) = *(begin + i);
-        w *= std::exp(std::log(g.NextReal()) / k);
-        goto loop;
-    }
-}
-
-// Reservoir Sampling O(k(1 + log(n/k))) algorithm implementation, using the 'L'
-// variant.
-//
-// Note: This function allocates an std::vector with capacity equal to
-// min(end - begin, k)
-//
-// Link: https://en.wikipedia.org/wiki/Reservoir_sampling
-template <class Iterator, class T>
-std::vector<typename Iterator::value_type> Sample(const Iterator begin,
-                                                  const Iterator end, size_t k,
-                                                  RNG<T>& g) noexcept {
-    k = std::min(static_cast<size_t>(end - begin), k);
-    std::vector<typename Iterator::value_type> reservoir(k);
-    Sample(begin, end, reservoir.begin(), k, g);
-    return reservoir;
-}
-
-template <class Iterator, class Iterator2, class T>
-void SampleWithReplacement(const Iterator begin, const Iterator end,
-                           Iterator2 out, size_t k, RNG<T>& g) noexcept {
-    const size_t length = end - begin;
-    std::transform(out, out + k, out, [begin, &g, length](auto) {
-        return *(begin + g.Next(length));
-    });
-}
-
-template <class Iterator, class T>
-std::vector<typename Iterator::value_type> SampleWithReplacement(
-    const Iterator begin, const Iterator end, size_t k, RNG<T>& g) noexcept {
-    std::vector<typename Iterator::value_type> pool(k);
-    SampleWithReplacement(begin, end, pool.begin(), k, g);
-    return pool;
-}
 
 // LCG or Linear Congruential Generator is a small and fast RNG. LCGs are
 // suitable for games or other trivial use-cases, but generally it is
