@@ -2,6 +2,7 @@
 
 #include <sys/types.h>
 
+#include <algorithm>
 #include <climits>
 #include <cmath>
 #include <limits>
@@ -37,42 +38,44 @@ class RNG {
     constexpr static T max() { return std::numeric_limits<T>::max(); }
 
     // Random number from [::min, ::max) range.
-    virtual T Next() { return Advance(); }
+    T Next() { return Advance(); }
     // Random number from [::min, ::max) range.
-    virtual T operator()() { return Next(); }
+    T operator()() { return Next(); }
 
     // Random number from uniform integer distribution in [0, n) range.
-    virtual T Next(T n) { return Next(0, n); }
+    T Next(T n) { return Next(0, n); }
     // Random number from uniform integer distribution in [0, n) range.
-    virtual T operator()(T n) { return Next(n); }
+    T operator()(T n) { return Next(n); }
 
     // Random number from uniform integer distribution in [a, b) range.
-    virtual T Next(T a, T b) {
-        if (a > b - 1) return a;
+    T Next(T a, T b) {
+        if (a >= b) return a;
 
-        std::uniform_int_distribution<> dist(a, b - 1);
+        std::uniform_int_distribution<> dist(a, std::nextafter(b, a));
         return dist(*this);
     }
     // Random number from uniform integer distribution in [a, b) range.
-    virtual T operator()(T a, T b) { return Next(a, b); }
+    T operator()(T a, T b) { return Next(a, b); }
 
     // Floating value number from standard uniform distribution i.e. (0, 1)
     // range.
-    virtual double NextReal() { return NextReal(0.0, 1.0); }
+    double NextReal() { return NextReal(std::nextafter(0.0, 1.0), 1.0); }
 
     // Floating value from uniform real distribution in [a, b) range.
-    virtual double NextReal(double a, double b) {
-        std::uniform_real_distribution<double> dist(a, std::nextafter(b, 0.0));
+    double NextReal(double a, double b) {
+        if (a >= b) return a;
+
+        std::uniform_real_distribution<double> dist(a, std::nextafter(b, a));
         return dist(*this);
     }
 
     // Balanced coin flip with 50% chance of heads and tails.
-    virtual bool Heads() { return NextReal() < 0.5; }
+    bool Heads() { return NextReal() < 0.5; }
 
     // Weighted coin flip. Parameter weight must be in (0, 1) range.
     // Weight smaller or equal than 0 will always yield false and
     // bigger or equal to 1 always yielding true.
-    virtual bool Heads(double weight) { return NextReal() < weight; }
+    bool Heads(double weight) { return NextReal() < weight; }
 
    protected:
     std::random_device rd{};
@@ -82,7 +85,7 @@ class RNG {
 //
 // Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
 template <class Iterator, class T>
-void Shuffle(Iterator begin, Iterator end, const RNG<T>& g) {
+void Shuffle(Iterator begin, Iterator end, RNG<T>& g) noexcept {
     if (begin >= end) return;
 
     const size_t length = end - begin;
@@ -94,42 +97,57 @@ void Shuffle(Iterator begin, Iterator end, const RNG<T>& g) {
 // Reservoir Sampling O(k(1 + log(n/k))) algorithm implementation, using the 'L'
 // variant.
 //
+// Note: This function does not perform bound checks. Improper iterator range is
+// considered undefined behaviour.
+//
 // Link: https://en.wikipedia.org/wiki/Reservoir_sampling
-template <class Iterator, class T>
-std::vector<Iterator> Sample(const Iterator begin, const Iterator end, size_t k,
-                             const RNG<T>& g) {
-    const size_t n = end > begin ? end - begin : 0;
-    std::vector<Iterator> reservoir{std::min(n, k)};
-    std::iota(reservoir.begin(), reservoir.end(), begin);
-
-    if (n <= k) {
-        Shuffle(reservoir.begin(), reservoir.end(), g);
-        return reservoir;
-    }
-
+template <class Iterator, class Iterator2, class T>
+void Sample(const Iterator begin, const Iterator end, Iterator2 out, size_t k,
+            RNG<T>& g) noexcept {
+    std::copy(begin, begin + k, out);
+    const size_t length = end - begin;
     double w = std::exp(std::log(g.NextReal()) / k);
     size_t i = k;
 loop:
     i += std::floor(std::log(g.NextReal()) / std::log(1 - w)) + 1;
-    if (i <= n) {
-        reservoir[g.Next(k)] = begin + i;
+    if (i < length) {
+        *(out + g.Next(k)) = *(begin + i);
         w *= std::exp(std::log(g.NextReal()) / k);
         goto loop;
     }
+}
+
+// Reservoir Sampling O(k(1 + log(n/k))) algorithm implementation, using the 'L'
+// variant.
+//
+// Note: This function allocates an std::vector with capacity equal to
+// min(end - begin, k)
+//
+// Link: https://en.wikipedia.org/wiki/Reservoir_sampling
+template <class Iterator, class T>
+std::vector<typename Iterator::value_type> Sample(const Iterator begin,
+                                                  const Iterator end, size_t k,
+                                                  RNG<T>& g) noexcept {
+    k = std::min(static_cast<size_t>(end - begin), k);
+    std::vector<typename Iterator::value_type> reservoir(k);
+    Sample(begin, end, reservoir.begin(), k, g);
     return reservoir;
 }
 
+template <class Iterator, class Iterator2, class T>
+void SampleWithReplacement(const Iterator begin, const Iterator end,
+                           Iterator2 out, size_t k, RNG<T>& g) noexcept {
+    const size_t length = end - begin;
+    std::transform(out, out + k, out, [begin, &g, length](auto) {
+        return *(begin + g.Next(length));
+    });
+}
+
 template <class Iterator, class T>
-std::vector<Iterator> SampleWithReplacement(const Iterator begin,
-                                            const Iterator end, size_t k,
-                                            const RNG<T>& g) {
-    const size_t n = end > begin ? end - begin : 0;
-    std::vector<Iterator> pool{k, begin};
-
-    for (Iterator& it : pool) {
-        it += g.Next(n);
-    }
-
+std::vector<typename Iterator::value_type> SampleWithReplacement(
+    const Iterator begin, const Iterator end, size_t k, RNG<T>& g) noexcept {
+    std::vector<typename Iterator::value_type> pool(k);
+    SampleWithReplacement(begin, end, pool.begin(), k, g);
     return pool;
 }
 
@@ -173,26 +191,17 @@ class LCG : public RNG<uint64_t> {
     const uint64_t mod_ = ((1ULL << 63ULL) - 25ULL);
 };
 
-namespace pcg_detail {
-constexpr uint64_t MUL64 = 6364136223846793005ULL;
-constexpr uint64_t INC64 = 1442695040888963407ULL;
-constexpr __uint128_t MUL128 =
-    (__uint128_t(2549297995355413924ULL) << 64) + 4865540595714422341ULL;
-constexpr __uint128_t INC128 =
-    (__uint128_t(6364136223846793005ULL) << 64) + 1442695040888963407ULL;
-}  // namespace pcg_detail
-
 // XSH-RR member of the PCG family. 64-bit state and 32-bit output. Great and
 // recommeneded for all purposes.
 class PCG32 : public RNG<uint32_t> {
    public:
-    PCG32() { Advance(); }
+    PCG32() { PCG32::Advance(); }
 
-    PCG32(uint64_t seed) : state_(seed) { Advance(); }
+    PCG32(uint64_t seed) : state_(seed) { PCG32::Advance(); }
 
     result_type Advance() override {
         auto x = state_;
-        state_ = pcg_detail::MUL64 * state_ + pcg_detail::INC64;
+        state_ = 6364136223846793005ULL * state_ + 1442695040888963407ULL;
         uint32_t xorshifted = ((x >> 18U) ^ x) >> 27U;  // XSH
         return detail::Rotr32(xorshifted, x >> 59U);    // RR
     }
@@ -210,13 +219,13 @@ class PCG32 : public RNG<uint32_t> {
 // (GCC/CLANG)
 class PCG64 : public RNG<uint64_t> {
    public:
-    PCG64() { Advance(); }
+    PCG64() { PCG64::Advance(); }
 
-    explicit PCG64(uint64_t seed) : state_(seed) { Advance(); }
+    explicit PCG64(uint64_t seed) : state_(seed) { PCG64::Advance(); }
 
     result_type Advance() override {
         auto x = state_;
-        state_ = pcg_detail::MUL128 * state_ + pcg_detail::INC128;
+        state_ = MUL * state_ + INC;
         uint64_t count = x >> 122U;
         return detail::Rotr64(x ^ (x >> 64), count);
     }
@@ -225,6 +234,10 @@ class PCG64 : public RNG<uint64_t> {
     __uint128_t GetSeed() const { return state_; }
 
    private:
+    constexpr static __uint128_t MUL =
+        (__uint128_t(2549297995355413924ULL) << 64) + 4865540595714422341ULL;
+    constexpr static __uint128_t INC =
+        (__uint128_t(6364136223846793005ULL) << 64) + 1442695040888963407ULL;
     __uint128_t state_ = (__uint128_t(rd()) << 64U) + rd();
 };
 
@@ -234,9 +247,9 @@ class PCG64 : public RNG<uint64_t> {
 // Link: https://rosettacode.org/wiki/Pseudo-random_numbers/Splitmix64
 class SplitMix64 : public RNG<uint64_t> {
    public:
-    SplitMix64() = default;
+    SplitMix64() { SplitMix64::Advance(); };
 
-    explicit SplitMix64(uint64_t seed) : state_(seed) {}
+    explicit SplitMix64(uint64_t seed) : state_(seed) { SplitMix64::Advance(); }
 
     result_type Advance() override {
         uint64_t result = (state_ += 0x9E3779B97f4A7C15);
@@ -260,10 +273,12 @@ class SplitMix64 : public RNG<uint64_t> {
 // Link: https://prng.di.unimi.it/xoshiro256plusplus.c
 class Xoshiro256PlusPlus : public RNG<uint64_t> {
    public:
-    Xoshiro256PlusPlus() : Xoshiro256PlusPlus(SplitMix64{}) { Advance(); }
+    Xoshiro256PlusPlus() : Xoshiro256PlusPlus(SplitMix64{}) {
+        Xoshiro256PlusPlus::Advance();
+    }
 
     Xoshiro256PlusPlus(uint64_t seed) : Xoshiro256PlusPlus(SplitMix64{seed}) {
-        Advance();
+        Xoshiro256PlusPlus::Advance();
     }
 
     template <class UniformRandomBitGenerator>
