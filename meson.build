@@ -7,6 +7,12 @@ project(
 
 executable('randshow', 'app/main.cpp')
 
-executable('gen_binary_data', 'tests/gen_binary_data.cpp')
-randshow_test = find_program('tests/randshow_test.sh')
+randshow_test = executable(
+  'randshow_test',
+  'tests/randshow_test.cpp',
+  objects: executable('catch_main', 'tests/tests.cpp').extract_all_objects(),
+)
 test('randshow_test', randshow_test, timeout: -1)
+
+# Quality test
+executable('PractRand-randshow', 'tests/PractRand-randshow.cpp')
