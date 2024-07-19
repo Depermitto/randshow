@@ -7,6 +7,7 @@
 #include <cassert>
 #include <random>
 #include <stdexcept>
+#include <type_traits>
 
 namespace randshow {
 // @brief A discrete distribution in which nth entry occurs 1/n times of the
@@ -16,14 +17,16 @@ namespace randshow {
 // in a text or language.
 //
 // @ingroup randshow
-template <class RealType = double>
+template <class UIntType = uint,
+          typename std::enable_if<std::is_unsigned<UIntType>::value,
+                                  bool>::type = true>
 class ZipfDistribution {
    public:
-    using result_type = RealType;
+    using result_type = UIntType;
 
     ZipfDistribution() = delete;
 
-    ZipfDistribution(size_t population_count, RealType distribution_param = 1.0)
+    ZipfDistribution(UIntType population_count, double distribution_param = 1.0)
         : n_(population_count), s_(distribution_param) {
         assert(population_count >= 1);
         assert(distribution_param >= 1);
@@ -35,7 +38,7 @@ class ZipfDistribution {
     }
 
     template <class UniformRandomBitGenerator>
-    RealType operator()(UniformRandomBitGenerator& g) {
+    UIntType operator()(UniformRandomBitGenerator& g) {
         static std::uniform_real_distribution<> dist(std::nextafter(0.0, 1.0),
                                                      std::nextafter(1.0, 0.0));
 
@@ -51,8 +54,8 @@ class ZipfDistribution {
     }
 
    private:
-    size_t n_;             // population count
-    RealType s_;           // distribution parameter
+    UIntType n_;           // population count
+    double s_;             // distribution parameter
     long double c_ = 0.0;  // normalization constant
 };
 }  // namespace randshow
