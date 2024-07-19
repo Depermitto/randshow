@@ -74,14 +74,6 @@ class RNG {
         return dist(*this);
     }
 
-    // Balanced coin flip with 50% chance of heads and tails.
-    bool Heads() { return NextReal() < 0.5; }
-
-    // Weighted coin flip. Parameter weight must be in (0, 1) range.
-    // Weight smaller or equal 0 will always yield false and
-    // bigger or equal to 1 always yield true.
-    bool Heads(double weight) { return NextReal() < weight; }
-
     // Classic Fisher-Yates O(n) shuffle algorithm implementation.
     //
     // Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
