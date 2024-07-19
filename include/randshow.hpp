@@ -42,25 +42,32 @@ class RNG {
     T operator()() { return Next(); }
 
     // Random number from uniform integer distribution in [0, n) range.
-    T Next(T n) { return Next(0, n); }
+    T Next(T n) { return Next(static_cast<T>(0), n); }
     // Random number from uniform integer distribution in [0, n) range.
     T operator()(T n) { return Next(n); }
 
     // Random number from uniform integer distribution in [a, b) range.
-    T Next(T a, T b) {
+    template <class U, typename std::enable_if<std::is_integral<T>::value,
+                                               bool>::type = true>
+    U Next(U a, U b) {
         if (a >= b) return a;
 
         std::uniform_int_distribution<> dist(a, std::nextafter(b, a));
         return dist(*this);
     }
     // Random number from uniform integer distribution in [a, b) range.
-    T operator()(T a, T b) { return Next(a, b); }
+    template <class U, typename std::enable_if<std::is_integral<T>::value,
+                                               bool>::type = true>
+    U operator()(U a, U b) {
+        return Next(a, b);
+    }
 
     // Floating value number from standard uniform distribution i.e. (0, 1)
     // range.
     double NextReal() { return NextReal(std::nextafter(0.0, 1.0), 1.0); }
 
-    // Floating value from uniform real distribution in [a, b) range.
+    // Floating value from uniform real distribution in [a, b) range. For (0, 1)
+    // non-inclusive range refer to NextReal().
     double NextReal(double a, double b) {
         if (a >= b) return a;
 
@@ -72,8 +79,8 @@ class RNG {
     bool Heads() { return NextReal() < 0.5; }
 
     // Weighted coin flip. Parameter weight must be in (0, 1) range.
-    // Weight smaller or equal than 0 will always yield false and
-    // bigger or equal to 1 always yielding true.
+    // Weight smaller or equal 0 will always yield false and
+    // bigger or equal to 1 always yield true.
     bool Heads(double weight) { return NextReal() < weight; }
 
     // Classic Fisher-Yates O(n) shuffle algorithm implementation.
@@ -81,10 +88,8 @@ class RNG {
     // Link: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
     template <class Iterator>
     void Shuffle(Iterator begin, Iterator end) noexcept {
-        if (begin >= end) return;
-
-        const size_t length = end - begin;
-        for (size_t i = 0; i != length - 2; i++) {
+        const size_t length = std::distance(begin, end);
+        for (size_t i = 0; i < length - 2; i++) {
             std::swap(*(begin + i), *(begin + Next(i, length)));
         }
     }
@@ -117,9 +122,6 @@ class RNG {
     }
 
     // Time complexity: O(k)
-    //
-    // Note: This function does not perform bound checks. Improper iterator
-    // range is considered undefined behaviour.
     template <class Iterator, class OutIterator>
     void SampleWithReplacement(const Iterator begin, const Iterator end,
                                OutIterator out, size_t k) noexcept {
@@ -292,4 +294,6 @@ class Xoshiro256PlusPlus : public RNG<uint64_t> {
    private:
     uint64_t s_[4] = {0};
 };
+
+static PCG32 DefaultEngine{};
 }  // namespace randshow
