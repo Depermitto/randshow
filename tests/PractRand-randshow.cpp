@@ -1,6 +1,5 @@
 #include <iostream>
-
-#include "include/randshow.hpp"
+#include <randshow/engines.hpp>
 
 int main() {
     randshow::PCG32 rng{};

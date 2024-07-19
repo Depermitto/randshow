@@ -1,7 +1,4 @@
 #pragma once
-
-#include <sys/types.h>
-
 #include <algorithm>
 #include <climits>
 #include <cmath>
@@ -24,7 +21,9 @@ constexpr inline uint64_t Rotl64(uint64_t x, int r) {
 }
 }  // namespace detail
 
-// Fully satisfies UniformRandomBitGenerator
+// @brief Interface of all random number generators contained in randshow,
+// satisfies UniformRandomBitGenerator requirement.
+// @ingroup randshow
 template <class T, typename std::enable_if<std::is_integral<T>::value,
                                            bool>::type = true>
 class RNG {

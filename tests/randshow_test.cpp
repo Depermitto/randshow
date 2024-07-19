@@ -1,6 +1,5 @@
-#include "include/randshow.hpp"
-
 #include <catch2/catch.hpp>
+#include <randshow/engines.hpp>
 
 using randshow::DefaultEngine;
 
