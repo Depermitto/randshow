@@ -23,7 +23,7 @@ class BenfordDistribution {
 
         const auto z = dist(g);
         long double sum_prob = 0.0;
-        for (size_t d = 1; d <= base_; d++) {
+        for (UIntType d = 1; d <= base_; d++) {
             sum_prob += std::log(1.0 + 1.0 / d) / std::log(base_);
             if (sum_prob >= z) {
                 return d;

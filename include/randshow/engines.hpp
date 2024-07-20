@@ -117,9 +117,9 @@ class RNG {
     void SampleWithReplacement(const Iterator begin, const Iterator end,
                                OutIterator out, size_t k) noexcept {
         const size_t length = std::distance(begin, end);
-        std::transform(out, out + k, out, [begin, length, this]() {
-            return *(begin + Next(length));
-        });
+        for (auto i = out; i < out + k; ++i) {
+            *i = *(begin + Next(length));
+        }
     }
 
    protected:

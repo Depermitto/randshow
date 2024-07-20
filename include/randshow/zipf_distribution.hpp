@@ -44,7 +44,7 @@ class ZipfDistribution {
 
         const auto z = dist(g);
         long double sum_prob = 0.0;
-        for (size_t x = 1; x <= n_; x++) {
+        for (UIntType x = 1; x <= n_; x++) {
             sum_prob += c_ / std::pow(x, s_);
             if (sum_prob >= z) {
                 return x;
