@@ -1,6 +1,6 @@
 #include <iostream>
+#include <randshow/distributions.hpp>
 #include <randshow/engines.hpp>
-#include <randshow/zipf_distribution.hpp>
 #include <unordered_map>
 
 int main() {

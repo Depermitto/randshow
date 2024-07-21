@@ -12,6 +12,8 @@ Download the contents of the _include_ directory and include desired headers in 
 
 ## Engines
 
+> **<randshow/engines.hpp>**
+
 > Contained in the <randshow/engines.hpp>
 
 - [PCG](https://www.pcg-random.org/) with 64-bit state and 32-bit output as well as a variant with 128-bit state and 64-bit output.
@@ -21,7 +23,10 @@ Download the contents of the _include_ directory and include desired headers in 
 
 ## Distributions
 
-- <randshow/zipf_distribution.hpp>
+> **<randshow/distributions.hpp>**
+
+- [Zipf Distribution](https://en.wikipedia.org/wiki/Zipf%27s_law?useskin=vector)
+- [Benford's Distribution](https://en.wikipedia.org/wiki/Benford%27s_law?useskin=vector)
 
 ## Examples
 
