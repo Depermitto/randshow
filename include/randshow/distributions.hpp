@@ -1,8 +1,3 @@
-// link: https://www.youtube.com/watch?v=9NvxDAUF_kI
-// code inspiration link: https://cse.usf.edu/~kchriste/tools/toolpage.html
-// TODO: complete compatibility with
-// https://en.cppreference.com/w/cpp/named_req/RandomNumberDistribution
-
 #pragma once
 #include <cassert>
 #include <random>
@@ -10,6 +5,11 @@
 #include <type_traits>
 
 namespace randshow {
+// link: https://www.youtube.com/watch?v=9NvxDAUF_kI
+// code inspiration link: https://cse.usf.edu/~kchriste/tools/toolpage.html
+// TODO: complete compatibility with
+// https://en.cppreference.com/w/cpp/named_req/RandomNumberDistribution
+
 // @brief A discrete distribution in which nth entry occurs 1/n times of the
 // most common entry.
 //
@@ -57,5 +57,36 @@ class ZipfDistribution {
     UIntType n_;           // population count
     double s_;             // distribution parameter
     long double c_ = 0.0;  // normalization constant
+};
+
+template <class UIntType = uint8_t,
+          typename std::enable_if<std::is_unsigned<UIntType>::value,
+                                  bool>::type = true>
+class BenfordDistribution {
+   public:
+    using result_type = UIntType;
+
+    BenfordDistribution() = default;
+
+    BenfordDistribution(UIntType base) : base_(base) { assert(base > 2); }
+
+    template <class UniformRandomBitGenerator>
+    UIntType operator()(UniformRandomBitGenerator& g) {
+        static std::uniform_real_distribution<> dist(std::nextafter(0.0, 1.0),
+                                                     std::nextafter(1.0, 0.0));
+
+        const auto z = dist(g);
+        long double sum_prob = 0.0;
+        for (UIntType d = 1; d <= base_; d++) {
+            sum_prob += std::log(1.0 + 1.0 / d) / std::log(base_);
+            if (sum_prob >= z) {
+                return d;
+            }
+        }
+        throw std::runtime_error("Unreachable Code");
+    }
+
+   private:
+    UIntType base_ = 10;
 };
 }  // namespace randshow
